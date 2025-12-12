@@ -4,7 +4,7 @@ Future<void> runCommand(String command, String workingDir) async {
   final dir = Directory(workingDir);
   if (!await dir.exists()) {
     print('❌ Directory does not exist: $workingDir');
-    return;
+    exit(1);
   }
 
   print('▶ Running: $command');
@@ -19,8 +19,13 @@ Future<void> runCommand(String command, String workingDir) async {
 
     stdout.write(result.stdout);
     stderr.write(result.stderr);
+    if (result.exitCode != 0) {
+      print('❌ Command failed with exit code ${result.exitCode}');
+      exit(result.exitCode);
+    }
   } catch (e) {
     print('❌ Error running command: $e');
+    exit(1);
   }
 }
 
