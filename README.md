@@ -4,5 +4,5 @@ starter kit to enable easy setup of health campaign field worker app
 
 
 # Note for install_bricks.sh
-if windows user , then change the mason and melos command to mason.bat and melos.bat 
-else keep same
+If you are a Windows user, change the mason and melos commands to mason.bat and melos.bat.
+Otherwise, keep the same commands.
