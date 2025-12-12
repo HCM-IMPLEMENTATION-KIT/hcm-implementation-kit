@@ -12,8 +12,13 @@ class ScriptTracker {
       return;
     }
 
-    final content = await _stateFile.readAsString();
-    _state = jsonDecode(content);
+    try {
+      final content = await _stateFile.readAsString();
+      _state = jsonDecode(content);
+    } catch (e) {
+      print('⚠️ Warning: Could not parse state file, resetting: $e');
+      _state = {};
+    }
   }
 
   static Future<void> _save() async {
