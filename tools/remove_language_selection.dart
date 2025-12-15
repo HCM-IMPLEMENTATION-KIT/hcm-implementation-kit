@@ -1,25 +1,21 @@
 import 'dart:io';
 
 void main() {
-  // ------------------ LOCATE app_router.dart ------------------
   final scriptDir = File(Platform.script.toFilePath()).parent;
   final repoRoot = scriptDir.parent;
 
   final appsDir = Directory('${repoRoot.path}/apps');
-
   if (!appsDir.existsSync()) {
-    print('❌ apps/ directory not found at ${appsDir.path}');
+    print('❌ apps directory not found at ${appsDir.path}');
     exit(1);
   }
 
-  // Find app_router.dart under apps/**/lib/router/
+  // Find app_router.dart
   final matches = appsDir
       .listSync(recursive: true)
       .whereType<File>()
       .where((file) => file.path.endsWith(
-            '${Platform.pathSeparator}lib'
-            '${Platform.pathSeparator}router'
-            '${Platform.pathSeparator}app_router.dart',
+            '${Platform.pathSeparator}lib${Platform.pathSeparator}router${Platform.pathSeparator}app_router.dart',
           ))
       .toList();
 
@@ -30,77 +26,58 @@ void main() {
 
   if (matches.length > 1) {
     print('⚠ Multiple app_router.dart files found:');
-    for (final f in matches) {
-      print(' - ${f.path}');
-    }
-    print('Please narrow the search.');
+    for (final f in matches) print(' - ${f.path}');
     exit(1);
   }
 
   final file = matches.first;
   print('✅ Found app_router.dart at:\n${file.path}\n');
 
-  // ------------------ READ FILE ------------------
   String content = file.readAsStringSync();
-
   bool languageRouteCommented = false;
   bool loginRouteUpdated = false;
 
-  // ------------------ 1️⃣ COMMENT ONLY LanguageSelectionRoute ------------------
+  // ------------------ COMMENT ONLY LanguageSelectionRoute ------------------
   content = content.replaceAllMapped(
     RegExp(
-      r'''AutoRoute\(\s*
-page:\s*LanguageSelectionRoute\.page,\s*
-path:\s*['"]language_selection['"],\s*
-initial:\s*true,\s*
-\),''',
+      r'AutoRoute\(\s*\n\s*page:\s*LanguageSelectionRoute\.page[\s\S]*?\),',
       multiLine: true,
     ),
     (match) {
       languageRouteCommented = true;
-
-      final commentedLines =
-          match.group(0)!.split('\n').map((line) => '// $line').toList();
-
-      return commentedLines.join('\n');
+      return match.group(0)!.split('\n').map((line) => '// $line').join('\n');
     },
   );
 
-  // ------------------ 2️⃣ MAKE LoginRoute initial ------------------
+  // ------------------ MAKE LoginRoute initial (single-line or multi-line) ------------------
   content = content.replaceAllMapped(
     RegExp(
-      r'AutoRoute\(\s*'
-      r'page:\s*LoginRoute\.page,'
-      r'[\s\S]*?\),',
+      r'AutoRoute\(\s*page:\s*LoginRoute\.page[\s\S]*?\),',
       multiLine: true,
     ),
     (match) {
       final block = match.group(0)!;
-
-      // Skip if already initial
-      if (block.contains('initial:')) {
-        return block;
-      }
+      if (block.contains('initial:')) return block;
 
       loginRouteUpdated = true;
 
       // Insert initial: true before closing
-      return block.replaceFirst(
-        RegExp(r'\)\s*,'),
-        ',\n  initial: true,\n),',
-      );
+      if (block.contains('\n')) {
+        // multi-line
+        return block.replaceFirst(RegExp(r'\)\s*,'), ',\n  initial: true,\n),');
+      } else {
+        // single-line
+        return block.replaceFirst(RegExp(r'\),'), ', initial: true),');
+      }
     },
   );
 
-  // ------------------ WRITE FILE ------------------
   file.writeAsStringSync(content);
 
-  // ------------------ RESULT ------------------
-  print('✅ Update completed');
+  print('✅ Update completed\n');
   print(languageRouteCommented
-      ? '✔ LanguageSelectionRoute commented out'
+      ? '✔ LanguageSelectionRoute commented'
       : '⚠ LanguageSelectionRoute not found');
-
   print(loginRouteUpdated
       ? '✔ LoginRoute set as initial'
       : '⚠ LoginRoute already initial or not found');

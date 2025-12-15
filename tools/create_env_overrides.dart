@@ -1,9 +1,13 @@
 import 'dart:io';
 
 void main() {
-  // If script is inside project_root/tools/
-  // Then project root = parent directory
-  final projectRoot = Directory.current.parent.path;
+  // Script location: hcm-implementation-kit/tools/
+  final scriptDir = File(Platform.script.toFilePath()).parent;
+
+  // Project root: hcm-implementation-kit/
+  final projectRoot = scriptDir.parent.path;
+
+  print('Resolved project root: $projectRoot');
 
   final targetPath = '$projectRoot/apps/health_campaign_field_worker_app';
   final outputDir = Directory(targetPath);
@@ -70,7 +74,6 @@ ENV_NAME="PROD"
 # Dependency Overrides (for local development only)
 # ================================================
 # Auto-generated — do not commit to Git.
-
 ''',
   };
 
