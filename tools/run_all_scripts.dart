@@ -9,27 +9,44 @@ class ScriptTask {
 
 Future<void> runScript(ScriptTask task) async {
   print('\n▶ Running: ${task.name}');
-  print('   dart ${task.path}\n');
 
-  final result = await Process.run(
-    'dart',
-    [task.path],
+  late String executable;
+  late List<String> arguments;
+
+  if (task.path.endsWith('.dart')) {
+    executable = 'dart';
+    arguments = [task.path];
+  } else if (task.path.endsWith('.sh')) {
+    executable = 'bash';
+    arguments = [task.path];
+  } else {
+    throw UnsupportedError(
+      'Unsupported script type: ${task.path}',
+    );
+  }
+
+  print('   $executable ${arguments.join(' ')}\n');
+
+  // IMPORTANT: inheritStdio enables interactive input
+  final process = await Process.start(
+    executable,
+    arguments,
     runInShell: true,
+    mode: ProcessStartMode.inheritStdio,
   );
 
-  stdout.write(result.stdout);
-  stderr.write(result.stderr);
+  final exitCode = await process.exitCode;
 
-  if (result.exitCode != 0) {
+  if (exitCode != 0) {
     print('\n❌ FAILED: ${task.name}');
-    exit(result.exitCode);
+    exit(exitCode);
   }
 
   print('✅ SUCCESS: ${task.name}');
 }
 
 Future<void> main() async {
-  final tasks = [
+  final tasks = <ScriptTask>[
     ScriptTask(
       'Create Environment Files',
       'tools/create_env_overrides.dart',
@@ -37,6 +54,10 @@ Future<void> main() async {
     ScriptTask(
       'Update App Router',
       'tools/remove_language_selection.dart',
+    ),
+    ScriptTask(
+      'Packages setup',
+      'tools/init_implementation.sh',
     ),
     ScriptTask(
       'Health App Setup',
