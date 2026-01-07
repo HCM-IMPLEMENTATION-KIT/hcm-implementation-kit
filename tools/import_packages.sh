@@ -12,7 +12,7 @@
 #   --workspace        Install in all workspace packages (melos workspace)
 #   --main-app         Install in main app only (apps/health_campaign_field_worker_app)
 #   --dry-run          Show what would be installed without actually doing it
-#   --force-override   Force add to pubspec_override.yaml instead of regular pubspec.yaml
+#   --force-override   Force add to pubspec_overrides.yaml instead of regular pubspec.yaml
 #   --list-packages    List packages from a text file (one package per line)
 
 set -e
@@ -58,7 +58,7 @@ show_help() {
     echo "  --workspace            Install in all workspace packages (melos workspace)"
     echo "  --main-app             Install in main app only (apps/health_campaign_field_worker_app)"
     echo "  --dry-run              Show what would be installed without actually doing it"
-    echo "  --force-override       Force add to pubspec_override.yaml"
+    echo "  --force-override       Force add to pubspec_overrides.yaml"
     echo "  --list-packages FILE   Read packages from file (one per line)"
     echo "  -h, --help             Show this help message"
     echo ""
@@ -70,7 +70,7 @@ show_help() {
     echo "  $0 --workspace provider                  # Add to all workspace packages"
     echo "  $0 --main-app flutter_bloc               # Add to main app only"
     echo "  $0 --dry-run http dio                    # Preview what would be installed"
-    echo "  $0 --force-override dio                  # Force add to pubspec_override.yaml"
+    echo "  $0 --force-override dio                  # Force add to pubspec_overrides.yaml"
     echo "  $0 --list-packages packages.txt         # Read packages from file"
 }
 
@@ -143,21 +143,21 @@ check_version_conflict() {
     return 1
 }
 
-# Add package to pubspec_override.yaml
+# Add package to pubspec_overrides.yaml
 add_package_to_override() {
     local package_name="$1"
     local package_version="$2"
     local pubspec_dir="$3"
-    local override_file="$pubspec_dir/pubspec_override.yaml"
+    local override_file="$pubspec_dir/pubspec_overrides.yaml"
     
-    log_info "Adding $package_name to pubspec_override.yaml"
+    log_info "Adding $package_name to pubspec_overrides.yaml"
     
     if [[ "$DRY_RUN" == true ]]; then
         log_info "[DRY RUN] Would add $package_name:$package_version to $override_file"
         return 0
     fi
     
-    # Create pubspec_override.yaml if it doesn't exist
+    # Create pubspec_overrides.yaml if it doesn't exist
     if [[ ! -f "$override_file" ]]; then
         cat > "$override_file" << EOF
 # This file contains dependency overrides to resolve version conflicts
@@ -166,16 +166,16 @@ name: override_dependencies
 
 dependency_overrides:
 EOF
-        log_info "Created new pubspec_override.yaml"
+        log_info "Created new pubspec_overrides.yaml"
     fi
     
     # Check if the package already exists in override file
     if grep -q "^  $package_name:" "$override_file"; then
-        log_warning "$package_name already exists in pubspec_override.yaml"
+        log_warning "$package_name already exists in pubspec_overrides.yaml"
         # Update existing entry
         if [[ -n "$package_version" ]]; then
             sed -i.bak "s/^  $package_name:.*$/  $package_name: $package_version/" "$override_file"
-            log_info "Updated $package_name version in pubspec_override.yaml"
+            log_info "Updated $package_name version in pubspec_overrides.yaml"
         fi
         return 0
     fi
@@ -195,7 +195,7 @@ EOF
         fi
     fi
     
-    log_success "Added $package_name to pubspec_override.yaml"
+    log_success "Added $package_name to pubspec_overrides.yaml"
 }
 
 # Validate package name
@@ -267,7 +267,7 @@ add_package_flutter() {
     
     # Check if we should force add to override
     if [[ "$FORCE_OVERRIDE" == true ]]; then
-        log_info "Force adding $package_name to pubspec_override.yaml"
+        log_info "Force adding $package_name to pubspec_overrides.yaml"
         add_package_to_override "$package_name" "$specified_version" "$pubspec_dir"
         return 0
     fi
@@ -313,24 +313,36 @@ add_package_flutter() {
         if check_version_conflict "$output"; then
             log_warning "Version conflict detected for $package_name"
             log_info "Output: $output"
-            log_info "Attempting to add to pubspec_override.yaml instead"
+            log_info "Attempting to add to pubspec_overrides.yaml instead"
             
-            # Add to pubspec_override.yaml
+            # Add to pubspec_overrides.yaml
             add_package_to_override "$package_name" "$specified_version" "$pubspec_dir"
             
             # Try running flutter pub get to see if override resolves the conflict
             log_info "Running flutter pub get to apply override..."
             local get_output
+            local get_exit_code
             get_output=$(
                 cd "$pubspec_dir" || exit 1
-                flutter pub get 2>&1
+                $flutter_cmd pub get 2>&1
             )
+            get_exit_code=$?
             
-            if [[ $? -eq 0 ]]; then
-                log_success "Successfully resolved version conflict using pubspec_override.yaml"
+            if [[ $get_exit_code -eq 0 ]]; then
+                log_success "Successfully resolved version conflict using pubspec_overrides.yaml"
             else
                 log_error "Failed to resolve version conflict even with override"
                 log_debug "Flutter pub get output: $get_output"
+                
+                # Remove the package from pubspec_overrides.yaml since it failed
+                log_info "Removing $package_name from pubspec_overrides.yaml as resolution failed"
+                local override_file="$pubspec_dir/pubspec_overrides.yaml"
+                if [[ -f "$override_file" ]]; then
+                    # Remove the line with the package
+                    sed -i.bak "/^  $package_name:/d" "$override_file"
+                    log_info "Removed $package_name from pubspec_overrides.yaml"
+                fi
+                
                 return 1
             fi
         else
@@ -539,7 +551,7 @@ show_summary() {
     fi
     
     if [[ "$FORCE_OVERRIDE" == true ]]; then
-        echo -e "${YELLOW}Override:${NC} Forced to pubspec_override.yaml"
+        echo -e "${YELLOW}Override:${NC} Forced to pubspec_overrides.yaml"
     fi
     
     if [[ "$DRY_RUN" == true ]]; then
@@ -609,8 +621,8 @@ main() {
         if [[ "$WORKSPACE_MODE" == false ]]; then
             pubspec_path=$(get_pubspec_path)
             pubspec_dir=$(dirname "$pubspec_path")
-            if [[ -f "$pubspec_dir/pubspec_override.yaml" ]]; then
-                log_info "Created/updated pubspec_override.yaml for version conflict resolution"
+            if [[ -f "$pubspec_dir/pubspec_overrides.yaml" ]]; then
+                log_info "Created/updated pubspec_overrides.yaml for version conflict resolution"
             fi
         fi
     else

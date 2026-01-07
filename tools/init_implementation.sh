@@ -138,11 +138,12 @@ get_module_type() {
     echo -e "  ${GREEN}4)${NC} Inventory Management Module"
     echo -e "  ${GREEN}5)${NC} Survey/Checklist Module"
     echo -e "  ${GREEN}6)${NC} Complaint Management Module"
-    echo -e "  ${GREEN}7)${NC} Custom Module"
+    echo -e "  ${GREEN}7)${NC} Dashboard Module"
+    echo -e "  ${GREEN}8)${NC} Closed Household Module"
     echo ""
     
     while true; do
-        echo -ne "${YELLOW}Select module type (1-7)${NC}: "
+        echo -ne "${YELLOW}Select module type (1-8)${NC}: "
         read -r choice
         
         case $choice in
@@ -177,12 +178,17 @@ get_module_type() {
                 break
                 ;;
             7)
-                MODULE_TYPE="custom"
-                log_info "Selected: Custom Module"
+                MODULE_TYPE="dashboard"
+                log_info "Selected: Dashboard Module"
+                break
+                ;;
+            8)
+                MODULE_TYPE="closed_household"
+                log_info "Selected: Closed Household Module"
                 break
                 ;;
             *)
-                log_error "Invalid choice. Please select 1-7."
+                log_error "Invalid choice. Please select 1-8."
                 ;;
         esac
     done
@@ -190,7 +196,7 @@ get_module_type() {
 
 # Collect additional packages
 get_additional_packages() {
-    log_header "Step 3: Additional Packages"
+    log_header "Additional Packages"
     echo ""
     
     get_yes_no "Do you want to add additional Flutter packages?" add_packages "n"
@@ -209,10 +215,22 @@ get_additional_packages() {
             
             PACKAGES_TO_ADD+=("$package")
             log_success "Added: $package"
+            
+            # Run import_packages.sh immediately for this package in the main app
+            echo ""
+            log_info "Installing package: $package"
+            
+            if bash "$SCRIPT_DIR/import_packages.sh" --main-app "$package"; then
+                log_success "Package '$package' installed successfully"
+            else
+                log_error "Failed to install package '$package'"
+                log_warning "You may need to install it manually later"
+            fi
+            echo ""
         done
         
         if [[ ${#PACKAGES_TO_ADD[@]} -gt 0 ]]; then
-            log_info "Packages to add: ${PACKAGES_TO_ADD[*]}"
+            log_info "All requested packages have been processed"
         fi
     fi
 }
@@ -244,27 +262,34 @@ setup_module() {
     
     log_header "Welcome to Implementation Kit Setup Wizard"
     echo ""
-    log_info "This wizard will help you set up a new module for the Health Campaign Field Worker App"
+    log_info "This wizard will help you set up the Health Campaign Field Worker App"
     echo ""
     
     # Step 1: Module Type
     get_module_type
     echo ""
     
-    # Step 2: Module Information
-    log_header "Step 2: Module Information"
-    echo ""
-    
-    get_input "Enter module name (snake_case, e.g., household_registration)" MODULE_NAME "true"
-    get_input "Enter display name (e.g., Household Registration)" MODULE_DISPLAY_NAME "true"
-    
-    echo ""
-    
-    # Step 3: Additional Packages
+    # Step 2: Additional Packages
     get_additional_packages
     
     # Show summary
-    show_summary
+    echo ""
+    log_header "Configuration Summary"
+    echo -e "${CYAN}════════════════════════════════════════════════════════════${NC}"
+    echo -e "${YELLOW}Module Type:${NC}           $MODULE_TYPE"
+    
+    if [[ ${#PACKAGES_TO_ADD[@]} -gt 0 ]]; then
+        echo ""
+        echo -e "${YELLOW}Additional Packages:${NC}"
+        for pkg in "${PACKAGES_TO_ADD[@]}"; do
+            echo -e "  - $pkg"
+        done
+    else
+        echo -e "${YELLOW}No additional packages selected${NC}"
+    fi
+    
+    echo -e "${CYAN}════════════════════════════════════════════════════════════${NC}"
+    echo ""
     
     # Confirm
     get_yes_no "Do you want to proceed with this configuration?" confirm "y"
@@ -272,6 +297,37 @@ setup_module() {
     if [[ "$confirm" != "yes" ]]; then
         log_warning "Setup cancelled by user"
         exit 0
+    fi
+    
+    echo ""
+    
+    # Run module-specific scripts
+    if [[ "$MODULE_TYPE" == "dashboard" ]]; then
+        log_info "Running Dashboard module setup..."
+        if [[ -f "$SCRIPT_DIR/digit_dss_imports.dart" ]]; then
+            if dart "$SCRIPT_DIR/digit_dss_imports.dart" 2>&1; then
+                log_success "Dashboard module packages installed successfully"
+            else
+                log_error "Failed to install Dashboard module packages"
+                log_warning "Continuing with setup..."
+            fi
+        else
+            log_warning "digit_dss_imports.dart not found, skipping Dashboard setup"
+        fi
+        echo ""
+    elif [[ "$MODULE_TYPE" == "closed_household" ]]; then
+        log_info "Running Closed Household module setup..."
+        if [[ -f "$SCRIPT_DIR/closed_household_package_imports.dart" ]]; then
+            if dart "$SCRIPT_DIR/closed_household_package_imports.dart" 2>&1; then
+                log_success "Closed Household module packages installed successfully"
+            else
+                log_error "Failed to install Closed Household module packages"
+                log_warning "Continuing with setup..."
+            fi
+        else
+            log_warning "closed_household_package_imports.dart not found, skipping Closed Household setup"
+        fi
+        echo ""
     fi
     
     # TODO: In the future, this is where we will:
@@ -285,32 +341,19 @@ setup_module() {
     echo ""
     log_success "╔════════════════════════════════════════════════════════════╗"
     log_success "║                                                            ║"
-    log_success "║          ✓ Module Setup Completed Successfully!           ║"
+    log_success "║          ✓ Setup Completed Successfully!                  ║"
     log_success "║                                                            ║"
     log_success "╚════════════════════════════════════════════════════════════╝"
     echo ""
     
-    log_info "Module '$MODULE_DISPLAY_NAME' has been configured successfully!"
-    echo ""
-    log_info "Next steps (will be automated in future versions):"
-    echo -e "  ${CYAN}1.${NC} Review the configuration above"
-    echo -e "  ${CYAN}2.${NC} Module structure will be generated automatically"
-    echo -e "  ${CYAN}3.${NC} Required packages will be installed"
-    echo -e "  ${CYAN}4.${NC} Routing and navigation will be configured"
-    echo -e "  ${CYAN}5.${NC} Localization files will be created"
-    echo ""
-    
-    log_info "Configuration saved for module: $MODULE_NAME"
     log_info "Module type: $MODULE_TYPE"
     
     if [[ ${#PACKAGES_TO_ADD[@]} -gt 0 ]]; then
         echo ""
-        log_info "The following packages were requested:"
+        log_info "The following packages were installed:"
         for pkg in "${PACKAGES_TO_ADD[@]}"; do
             echo -e "  ${PURPLE}•${NC} $pkg"
         done
-        echo ""
-        log_info "These will be installed automatically in future versions"
     fi
     
     echo ""
