@@ -46,16 +46,25 @@ echo "==========================================="
 echo "    HEALTH PROJECT SETUP RUNNING…"
 echo "==========================================="
 
+# Use fvm if available, otherwise fall back to plain flutter/dart
+if command -v fvm &> /dev/null; then
+  FVM="fvm "
+  echo "ℹ️  fvm detected — using fvm"
+else
+  FVM=""
+  echo "ℹ️  fvm not found — using system flutter/dart"
+fi
+
 # Step 1: Run install_bricks.sh in tools folder (non-fatal — continue on failure)
 run_command_warn "bash install_bricks.sh" "$TOOLS_PATH"
 
 # Step 2: Flutter pub get in health app folder
-run_command "fvm flutter pub get" "$HEALTH_APP_PATH"
+run_command "${FVM}flutter pub get" "$HEALTH_APP_PATH"
 
 # Step 3: Flutter clean in health app folder
-run_command "fvm flutter clean" "$HEALTH_APP_PATH"
+run_command "${FVM}flutter clean" "$HEALTH_APP_PATH"
 
-# Step 4: Build runner in tools folder
-run_command "fvm dart run build_runner build --delete-conflicting-outputs" "$HEALTH_APP_PATH"
+# Step 4: Build runner in health app folder
+run_command "${FVM}dart run build_runner build --delete-conflicting-outputs" "$HEALTH_APP_PATH"
 
 echo "✅ HEALTH PROJECT SETUP COMPLETED"
