@@ -1,6 +1,7 @@
 import 'dart:io';
 
-Future<void> runCommand(String command, String workingDir) async {
+Future<void> runCommand(String command, String workingDir,
+    {bool exitOnError = true}) async {
   final dir = Directory(workingDir);
   if (!await dir.exists()) {
     print('❌ Directory does not exist: $workingDir');
@@ -20,12 +21,20 @@ Future<void> runCommand(String command, String workingDir) async {
     stdout.write(result.stdout);
     stderr.write(result.stderr);
     if (result.exitCode != 0) {
-      print('❌ Command failed with exit code ${result.exitCode}');
-      exit(result.exitCode);
+      if (exitOnError) {
+        print('❌ Command failed with exit code ${result.exitCode}');
+        exit(result.exitCode);
+      } else {
+        print('⚠️  Command failed (continuing): $command');
+      }
     }
   } catch (e) {
-    print('❌ Error running command: $e');
-    exit(1);
+    if (exitOnError) {
+      print('❌ Error running command: $e');
+      exit(1);
+    } else {
+      print('⚠️  Error running command (continuing): $e');
+    }
   }
 }
 
@@ -40,19 +49,19 @@ void main() async {
   print('    HEALTH PROJECT SETUP RUNNING…');
   print('===========================================');
 
-  // Step 1: Run install_bricks.sh in tools folder
-  await runCommand('bash install_bricks.sh', toolsPath);
+  // Step 1: Run install_bricks.sh in tools folder (non-fatal — continue on failure)
+  await runCommand('bash install_bricks.sh', toolsPath, exitOnError: false);
 
   // Step 2: Flutter pub get in health app folder
-  await runCommand('flutter pub get', healthAppPath);
+  await runCommand('fvm flutter pub get', healthAppPath);
 
   // Step 3: Flutter clean in health app folder
-  await runCommand('flutter clean', healthAppPath);
+  await runCommand('fvm flutter clean', healthAppPath);
 
   // Step 4: Build runner in tools folder
   await runCommand(
-      'flutter packages pub run build_runner build --delete-conflicting-outputs',
-      toolsPath);
+      'fvm dart run build_runner build --delete-conflicting-outputs',
+      healthAppPath);
 
   print('✅ HEALTH PROJECT SETUP COMPLETED');
 }
